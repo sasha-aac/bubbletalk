@@ -1,0 +1,20 @@
+{
+  "bubble_color": [255, 255, 255],
+  "text_color": [0, 0, 0],
+  "border_color": [0, 0, 0],
+  "text_size": 24,
+  "bubble_x": 50,
+  "bubble_y": 50,
+  "bubble_padding": 20,
+  "font_path": null,
+  "phrases": [
+    "Hello!",
+    "Thank you",
+    "Can you repeat that?",
+    "One moment please",
+    "I agree",
+    "I disagree",
+    "Let me think about that",
+    "Could you speak up?"
+  ]
+}
