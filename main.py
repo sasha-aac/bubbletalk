@@ -190,17 +190,86 @@ class VideoProcessor(QObject):
         except:
             font = ImageFont.load_default()
         
-        # Calculate text size
-        bbox = draw.textbbox((0, 0), text, font=font)
-        text_width = bbox[2] - bbox[0]
-        text_height = bbox[3] - bbox[1]
-        
-        # Bubble dimensions
+        # Wrap text to fit in-frame based on the available width.
         padding = config["bubble_padding"]
         bubble_x = config["bubble_x"]
         bubble_y = config["bubble_y"]
-        bubble_width = text_width + padding * 2
+
+        frame_height, frame_width = frame.shape[:2]
+        margin = 10
+        max_bubble_width = max(120, frame_width - bubble_x - margin)
+        max_text_width = max(40, max_bubble_width - (padding * 2))
+
+        wrapped_lines = []
+        source_lines = text.splitlines() or [text]
+
+        for source_line in source_lines:
+            words = source_line.split(" ") if source_line else [""]
+            current_line = ""
+
+            for word in words:
+                candidate = word if not current_line else f"{current_line} {word}"
+                bbox = draw.textbbox((0, 0), candidate, font=font)
+                candidate_width = bbox[2] - bbox[0]
+
+                if candidate_width <= max_text_width:
+                    current_line = candidate
+                    continue
+
+                if current_line:
+                    wrapped_lines.append(current_line)
+
+                # Split very long words by character if needed.
+                long_word = word
+                while long_word:
+                    best_fit = ""
+                    for idx in range(1, len(long_word) + 1):
+                        part = long_word[:idx]
+                        part_bbox = draw.textbbox((0, 0), part, font=font)
+                        part_width = part_bbox[2] - part_bbox[0]
+                        if part_width <= max_text_width:
+                            best_fit = part
+                        else:
+                            break
+
+                    if not best_fit:
+                        # Safety fallback for extremely narrow frames.
+                        best_fit = long_word[0]
+
+                    if len(best_fit) < len(long_word):
+                        wrapped_lines.append(best_fit)
+                        long_word = long_word[len(best_fit):]
+                    else:
+                        current_line = best_fit
+                        long_word = ""
+
+            if current_line:
+                wrapped_lines.append(current_line)
+            elif not words:
+                wrapped_lines.append("")
+
+        if not wrapped_lines:
+            wrapped_lines = [""]
+
+        line_heights = []
+        line_widths = []
+        line_spacing = max(4, config["text_size"] // 4)
+        for line in wrapped_lines:
+            line_bbox = draw.textbbox((0, 0), line or " ", font=font)
+            line_widths.append(line_bbox[2] - line_bbox[0])
+            line_heights.append(line_bbox[3] - line_bbox[1])
+
+        text_width = max(line_widths) if line_widths else 0
+        text_height = sum(line_heights) + (line_spacing * (len(wrapped_lines) - 1))
+
+        bubble_width = min(text_width + padding * 2, max_bubble_width)
         bubble_height = text_height + padding * 2
+
+        # Keep bubble inside the frame.
+        bubble_x = max(margin, min(bubble_x, frame_width - bubble_width - margin))
+        tail_height = 15
+        max_y = frame_height - bubble_height - tail_height - margin
+        bubble_y = max(margin, min(bubble_y, max_y))
         
         # Draw bubble background
         bubble_box = [
@@ -230,7 +299,10 @@ class VideoProcessor(QObject):
         text_x = bubble_x + padding
         text_y = bubble_y + padding
         text_color = tuple(config["text_color"])
-        draw.text((text_x, text_y), text, fill=text_color, font=font)
+        current_y = text_y
+        for line, line_height in zip(wrapped_lines, line_heights):
+            draw.text((text_x, current_y), line, fill=text_color, font=font)
+            current_y += line_height + line_spacing
         
         # Convert back to OpenCV
         return cv2.cvtColor(np.array(pil_image), cv2.COLOR_RGB2BGR)
@@ -406,8 +478,7 @@ class BubbleTalkApp(QMainWindow):
         text = self.text_input.text().strip()
         if text:
             self.processor.set_text(text)
-            # Keep text for 5 seconds then clear
-            QTimer.singleShot(5000, self.clear_text)
+            self.text_input.clear()
     
     def quick_phrase(self, phrase):
         """Use a quick access phrase"""
