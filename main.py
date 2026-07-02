@@ -41,6 +41,7 @@ from PyQt5.QtWidgets import (
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
+    QCheckBox,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -95,8 +96,8 @@ class VideoProcessor(QObject):
         self.message_duration_seconds = 15
         self.cap = None
         self.vcam = None
-        self.output_width = 1920
-        self.output_height = 1080
+        self.output_width = 1280
+        self.output_height = 720
         self.output_fps = 30
         self.last_bubble_box = None
         self.last_bubble_boxes = []
@@ -138,6 +139,7 @@ class VideoProcessor(QObject):
             "wrap_width_scale": 0.75,
             "bubble_x": 50,
             "bubble_y": 50,
+            "video_preview_enabled": True,
             "bubble_padding": 20,
             "font_path": None,
             "phrases": [
@@ -154,6 +156,8 @@ class VideoProcessor(QObject):
         try:
             if sys.platform.startswith("linux"):
                 self.cap = cv2.VideoCapture(camera_id, cv2.CAP_V4L2)
+                self.cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
             else:
                 self.cap = cv2.VideoCapture(camera_id)
 
@@ -193,7 +197,7 @@ class VideoProcessor(QObject):
 
             self.is_running = True
             self.status_changed.emit(
-                f"Streaming: 1920x1080 @ {self.output_fps}fps (capture {capture_width}x{capture_height} @ {capture_fps:.0f}fps)"
+                f"Streaming: {self.output_width}x{self.output_height} @ {self.output_fps}fps (capture {capture_width}x{capture_height} @ {capture_fps:.0f}fps)"
             )
             return True
 
@@ -475,6 +479,10 @@ class BubbleTalkApp(QMainWindow):
         layout = QHBoxLayout()
 
         left_layout = QVBoxLayout()
+        self.video_preview_checkbox = QCheckBox("Enable Video Preview")
+        self.video_preview_checkbox.toggled.connect(self.on_video_preview_toggled)
+        left_layout.addWidget(self.video_preview_checkbox)
+
         self.video_label = PreviewLabel("Video Preview")
         self.video_label.setStyleSheet("border: 2px solid black; min-height: 400px; min-width: 500px;")
         self.video_label.setAlignment(Qt.AlignCenter)
@@ -593,6 +601,10 @@ class BubbleTalkApp(QMainWindow):
         self.wrap_width_slider.setValue(wrap_percent)
         self.wrap_width_value.setText(f"{wrap_percent}%")
 
+        preview_enabled = bool(config.get("video_preview_enabled", True))
+        self.video_preview_checkbox.setChecked(preview_enabled)
+        self.set_video_preview_enabled(preview_enabled)
+
     def populate_camera_choices(self):
         """Populate camera dropdown with indices that are likely available."""
         self.camera_combo.clear()
@@ -663,12 +675,30 @@ class BubbleTalkApp(QMainWindow):
         self.processor.set_wrap_width_percent(value)
         self.wrap_width_value.setText(f"{value}%")
 
+    def on_video_preview_toggled(self, enabled):
+        """Enable or disable the live video preview."""
+        self.processor.config["video_preview_enabled"] = enabled
+        self.processor.save_config()
+        self.set_video_preview_enabled(enabled)
+
+    def set_video_preview_enabled(self, enabled):
+        """Show or hide the preview pane and update its placeholder text."""
+        self.video_label.setVisible(enabled)
+        if enabled:
+            self.video_label.setText("Video Preview")
+        else:
+            self.video_label.setPixmap(QPixmap())
+            self.video_label.setText("Video Preview Disabled")
+
     def update_status(self, status):
         """Update status label."""
         self.status_label.setText(f"Status: {status}")
 
     def update_preview(self, frame):
         """Update video preview while preserving aspect ratio."""
+        if not self.video_preview_checkbox.isChecked():
+            return
+
         label_width = max(1, self.video_label.width())
         label_height = max(1, self.video_label.height())
         frame_height, frame_width = frame.shape[:2]

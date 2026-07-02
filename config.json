@@ -15,10 +15,11 @@
     0
   ],
   "text_size": 24,
-  "bubble_scale": 1.98,
+  "bubble_scale": 1.83,
   "wrap_width_scale": 0.75,
   "bubble_x": 345,
   "bubble_y": 90,
+  "video_preview_enabled": true,
   "bubble_padding": 20,
   "font_path": null,
   "phrases": [
