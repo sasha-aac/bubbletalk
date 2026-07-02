@@ -1,10 +1,24 @@
 {
-  "bubble_color": [255, 255, 255],
-  "text_color": [0, 0, 0],
-  "border_color": [0, 0, 0],
+  "bubble_color": [
+    255,
+    255,
+    255
+  ],
+  "text_color": [
+    0,
+    0,
+    0
+  ],
+  "border_color": [
+    0,
+    0,
+    0
+  ],
   "text_size": 24,
-  "bubble_x": 50,
-  "bubble_y": 50,
+  "bubble_scale": 1.98,
+  "wrap_width_scale": 0.75,
+  "bubble_x": 345,
+  "bubble_y": 90,
   "bubble_padding": 20,
   "font_path": null,
   "phrases": [

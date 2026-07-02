@@ -6,8 +6,11 @@ A desktop application that adds text speech bubbles to your webcam video stream 
 
 - **Real-time webcam capture** with speech bubble overlays
 - **Text input** with quick-access buttons for common phrases
+- **15-second auto-clear** for each sent message
 - **Customizable phrases** for fast communication
 - **Adjustable bubble positioning** and styling
+- **Drag-and-drop bubble positioning** directly on the video preview
+- **Message chain stacking** where new bubbles appear below active ones
 - **Virtual camera output** for seamless Google Meet integration
 - **Keyboard shortcuts** for accessibility
 
@@ -50,8 +53,11 @@ ls /dev/video*
 1. **Start the app** - Select your webcam and virtual camera device
 2. **Enable streaming** - Click "Start Stream" to begin
 3. **Type or select phrases** - Use the text input or quick-access buttons
-4. **Watch your video** - See the speech bubbles appear on your webcam feed
-5. **Open Google Meet** - Select "BubbleTalk" as your camera in Meet
+4. **Automatic timeout** - Each message bubble disappears after 15 seconds
+5. **Message chaining** - Sending while another bubble is active adds a new bubble below it
+6. **Drag the bubble on preview** - Click and drag any visible bubble to reposition the whole chain
+7. **Watch your video** - Bubble positions on preview match the virtual camera output
+8. **Open Google Meet** - Select "BubbleTalk" as your camera in Meet
 
 ## Configuration
 
