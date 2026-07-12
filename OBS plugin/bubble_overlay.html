@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <!--
+    BubbleTalk — OBS Browser Source Overlay
+    =========================================
+    Add this as a Browser Source in OBS:
+      URL    : http://127.0.0.1:42680/bubble_overlay.html
+      Width  : 1920   Height : 1080
+      Custom CSS: (leave blank — transparent bg is set here)
+
+    The page polls bubble_state.json served by bubbletalk_obs.py and
+    renders speech bubbles that match the original BubbleTalk styling.
+  -->
+  <style>
+    /* ── Reset ──────────────────────────────────────────────────────────── */
+    *, *::before, *::after {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    /* ── Root ───────────────────────────────────────────────────────────── */
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      overflow: hidden;
+      background: transparent;   /* OBS browser source sees this as alpha */
+      font-family: 'DejaVu Sans', 'Segoe UI', Arial, sans-serif;
+    }
+
+    /* ── Bubble container ───────────────────────────────────────────────── */
+    #bubble-container {
+      position: absolute;
+      left: var(--bx, 100px);
+      top:  var(--by, 150px);
+      display: flex;
+      flex-direction: column;
+      gap: calc(12px * var(--scale, 1));
+      max-width: min(640px, calc(1920px - var(--bx, 100px) - 20px));
+    }
+
+    /* ── Individual bubble ──────────────────────────────────────────────── */
+    .bubble {
+      position: relative;
+      background: #ffffff;
+      border: calc(3px * var(--scale, 1)) solid #000000;
+      border-radius: calc(16px * var(--scale, 1));
+      padding:
+        calc(14px * var(--scale, 1))
+        calc(20px * var(--scale, 1));
+      font-size: calc(var(--fs, 22px) * var(--scale, 1));
+      line-height: 1.45;
+      color: #000000;
+      word-break: break-word;
+      animation: pop-in 0.15s ease-out both;
+    }
+
+    /* tail — border layer */
+    .bubble::after {
+      content: '';
+      position: absolute;
+      bottom: calc(-1px - 18px * var(--scale, 1));
+      left: 50%;
+      transform: translateX(-50%);
+      border-left:  calc(12px * var(--scale, 1)) solid transparent;
+      border-right: calc(12px * var(--scale, 1)) solid transparent;
+      border-top:   calc(18px * var(--scale, 1)) solid #000000;
+    }
+
+    /* tail — fill layer */
+    .bubble::before {
+      content: '';
+      position: absolute;
+      bottom: calc(2px + 5px * var(--scale, 1));
+      left: 50%;
+      transform: translateX(-50%);
+      border-left:  calc(9px * var(--scale, 1)) solid transparent;
+      border-right: calc(9px * var(--scale, 1)) solid transparent;
+      border-top:   calc(14px * var(--scale, 1)) solid #ffffff;
+      z-index: 1;
+    }
+
+    /* ── Animations ─────────────────────────────────────────────────────── */
+    @keyframes pop-in {
+      from { opacity: 0; transform: scale(0.90) translateY(-6px); }
+      to   { opacity: 1; transform: scale(1)    translateY(0);    }
+    }
+
+    @keyframes fade-out {
+      from { opacity: 1; }
+      to   { opacity: 0; transform: scale(0.94); }
+    }
+
+    .bubble.removing {
+      animation: fade-out 0.25s ease-in both;
+    }
+  </style>
+</head>
+<body>
+  <div id="bubble-container"></div>
+
+  <script>
+    'use strict';
+
+    const STATE_URL  = 'http://127.0.0.1:42680/bubble_state.json';
+    const POLL_MS    = 400;   // how often to check for new state
+    const FADE_MS    = 250;   // must match fade-out animation duration above
+
+    let _lastJson  = '';
+    let _currentCfg = {};   // always up-to-date config
+
+    // ── Style helpers ─────────────────────────────────────────────────────
+
+    function styleEl(el, cfg) {
+      const s = cfg.scale    ?? 1;
+      const f = cfg.fontSize ?? 22;
+      el.style.fontSize     = `${(f * s).toFixed(1)}px`;
+      el.style.padding      = `${(14 * s).toFixed(1)}px ${(20 * s).toFixed(1)}px`;
+      el.style.borderRadius = `${(16 * s).toFixed(1)}px`;
+      el.style.borderWidth  = `${(3  * s).toFixed(1)}px`;
+    }
+
+    // ── CSS variable helpers ─────────────────────────────────────────────
+
+    function applyConfig(cfg) {
+      if (!cfg) return;
+      _currentCfg = cfg;
+
+      const r = document.documentElement.style;
+      const s = cfg.scale    ?? 1;
+      const f = cfg.fontSize ?? 22;
+
+      // CSS variables (used by ::before / ::after tail pseudo-elements)
+      r.setProperty('--bx',    (cfg.x ?? 100) + 'px');
+      r.setProperty('--by',    (cfg.y ?? 150) + 'px');
+      r.setProperty('--fs',    f + 'px');
+      r.setProperty('--scale', s);
+
+      // Direct position on the container
+      const container = document.getElementById('bubble-container');
+      container.style.left = (cfg.x ?? 100) + 'px';
+      container.style.top  = (cfg.y ?? 150) + 'px';
+
+      // Re-style every existing bubble directly
+      container.querySelectorAll('.bubble').forEach(el => styleEl(el, cfg));
+    }
+
+    // ── DOM rendering ────────────────────────────────────────────────────
+
+    function renderBubbles(messages) {
+      const now = Date.now();
+      const active = messages.filter(m => new Date(m.expires_at).getTime() > now);
+
+      // Build a quick-compare key
+      const key = active.map(m => m.text + '|' + m.expires_at).join(';;');
+      if (key === renderBubbles._lastKey) return;
+      renderBubbles._lastKey = key;
+
+      const container = document.getElementById('bubble-container');
+
+      // Find existing elements by text so we can preserve running animations
+      const existingMap = new Map();
+      container.querySelectorAll('.bubble').forEach(el => {
+        existingMap.set(el.dataset.key, el);
+      });
+
+      // Build new set
+      const newKeys = new Set(active.map(m => m.text + '|' + m.expires_at));
+
+      // Remove bubbles that are no longer active (animate out)
+      existingMap.forEach((el, k) => {
+        if (!newKeys.has(k)) {
+          el.classList.add('removing');
+          setTimeout(() => el.remove(), FADE_MS);
+        }
+      });
+
+      // Add new bubbles (they animate in via CSS)
+      active.forEach(m => {
+        const k = m.text + '|' + m.expires_at;
+        if (!existingMap.has(k)) {
+          const div = document.createElement('div');
+          div.className = 'bubble';
+          div.dataset.key = k;
+          div.textContent = m.text;
+          styleEl(div, _currentCfg);   // apply current config immediately
+          container.appendChild(div);
+        }
+      });
+    }
+
+    renderBubbles._lastKey = '';
+
+    // ── Polling loop ─────────────────────────────────────────────────────
+
+    async function poll() {
+      try {
+        const res  = await fetch(STATE_URL + '?_=' + Date.now());
+        const text = await res.text();
+        if (text === _lastJson) return;
+        _lastJson = text;
+
+        const data = JSON.parse(text);
+        applyConfig(data.config);
+        renderBubbles(data.messages || []);
+      } catch (_) {
+        // Server not ready yet — keep polling silently
+      }
+    }
+
+    setInterval(poll, POLL_MS);
+    poll();
+  </script>
+</body>
+</html>

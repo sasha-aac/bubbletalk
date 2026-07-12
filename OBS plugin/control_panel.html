@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BubbleTalk Control Panel</title>
+  <style>
+    :root {
+      --bg:      #1a1a2e;
+      --surface: #16213e;
+      --card:    #0f3460;
+      --accent:  #e94560;
+      --pink:    #ff6eb4;
+      --text:    #eaeaea;
+      --muted:   #8892a4;
+      --radius:  10px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, Arial, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 32px 16px 48px;
+      gap: 20px;
+    }
+
+    h1 { font-size: 1.5rem; letter-spacing: 0.04em; }
+    h1 span { color: var(--accent); }
+
+    /* ── Shared card ──────────────────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--card);
+      border-radius: var(--radius);
+      padding: 20px;
+      width: 100%;
+      max-width: 560px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .card-title {
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--muted);
+    }
+
+    /* ── Message input ────────────────────────────────────────────────── */
+    .input-row { display: flex; gap: 8px; }
+
+    input[type="text"] {
+      flex: 1;
+      background: var(--bg);
+      border: 2px solid var(--card);
+      border-radius: 6px;
+      color: var(--text);
+      font-size: 1.05rem;
+      padding: 10px 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type="text"]:focus { border-color: var(--accent); }
+
+    button {
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      padding: 10px 18px;
+      transition: opacity 0.15s, transform 0.1s;
+      white-space: nowrap;
+    }
+    button:active { transform: scale(0.96); }
+    button:hover  { opacity: 0.85; }
+
+    .btn-send  { background: var(--accent); color: #fff; }
+    .btn-clear { background: var(--card);   color: var(--muted); }
+
+    #status {
+      font-size: 0.82rem;
+      color: var(--muted);
+      min-height: 1.1em;
+      transition: color 0.2s;
+    }
+    #status.ok  { color: #4caf82; }
+    #status.err { color: var(--accent); }
+
+    /* ── Position grid ────────────────────────────────────────────────── */
+    .grid-label-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #pos-readout {
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+    }
+
+    #position-grid {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      background: var(--bg);
+      border: 1px solid var(--card);
+      border-radius: 6px;
+      cursor: crosshair;
+      overflow: hidden;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 10% 10%;
+      touch-action: none;
+      user-select: none;
+    }
+
+    /* centre crosshair guides */
+    #position-grid::before,
+    #position-grid::after {
+      content: '';
+      position: absolute;
+      background: rgba(255,255,255,0.08);
+      pointer-events: none;
+    }
+    #position-grid::before { width: 1px; height: 100%; left: 50%; top: 0; }
+    #position-grid::after  { height: 1px; width: 100%; top: 50%; left: 0; }
+
+    #pos-dot {
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      background: var(--pink);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 8px rgba(255, 110, 180, 0.7);
+      pointer-events: none;
+      transition: box-shadow 0.1s;
+    }
+
+    #position-grid.dragging #pos-dot {
+      box-shadow: 0 0 16px rgba(255, 110, 180, 1);
+    }
+
+    /* ── Sliders ──────────────────────────────────────────────────────── */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .slider-row > span:first-child {
+      font-size: 0.85rem;
+      color: var(--muted);
+      width: 110px;
+      flex-shrink: 0;
+    }
+
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      border-radius: 2px;
+      background: var(--card);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+    input[type="range"]::-moz-range-thumb {
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--accent);
+      border: 2px solid #fff;
+      cursor: pointer;
+    }
+
+    .slider-val {
+      font-size: 0.82rem;
+      color: var(--text);
+      width: 52px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+      flex-shrink: 0;
+    }
+
+    /* ── Connection status ────────────────────────────────────────────── */
+    #conn-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--muted);
+      margin-left: 8px;
+      vertical-align: middle;
+      transition: background 0.3s;
+    }
+    #conn-dot.ok  { background: #4caf82; }
+    #conn-dot.err { background: var(--accent); }
+
+    /* ── Bubble preview ───────────────────────────────────────────────── */
+    .preview-area {
+      display: flex;
+      justify-content: center;
+      padding: 16px 0 24px;
+    }
+
+    .preview-bubble {
+      position: relative;
+      background: #ffffff;
+      border: 3px solid #000000;
+      border-radius: 16px;
+      padding: 14px 20px;
+      color: #000000;
+      line-height: 1.45;
+      max-width: 100%;
+      word-break: break-word;
+      transition: font-size 0.1s, padding 0.1s, border-radius 0.1s;
+    }
+
+    .preview-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left:  12px solid transparent;
+      border-right: 12px solid transparent;
+      border-top:   18px solid #000000;
+    }
+
+    .preview-bubble::before {
+      content: '';
+      position: absolute;
+      bottom: -12px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-left:  9px solid transparent;
+      border-right: 9px solid transparent;
+      border-top:   13px solid #ffffff;
+      z-index: 1;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Bubble<span>Talk</span><span id="conn-dot" title="Server connection"></span></h1>
+
+  <!-- ── Message ─────────────────────────────────────────────────────── -->
+  <div class="card">
+    <span class="card-title">Message</span>
+    <div class="input-row">
+      <input id="msg-input" type="text" placeholder="Type your message…" autocomplete="off" autofocus>
+      <button class="btn-send"  onclick="sendMessage()">Send</button>
+      <button class="btn-clear" onclick="clearBubbles()">Clear</button>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <!-- ── Position ────────────────────────────────────────────────────── -->
+  <div class="card">
+    <div class="grid-label-row">
+      <span class="card-title">Bubble Position</span>
+      <span id="pos-readout">x: 100, y: 150</span>
+    </div>
+    <div id="position-grid">
+      <div id="pos-dot"></div>
+    </div>
+  </div>
+
+  <!-- ── Styling ─────────────────────────────────────────────────────── -->
+  <div class="card">
+    <span class="card-title">Styling</span>
+    <div class="slider-row">
+      <span>Font Size</span>
+      <input id="font-size" type="range" min="12" max="72" step="1" value="22">
+      <span class="slider-val" id="font-size-val">22 px</span>
+    </div>
+    <div class="slider-row">
+      <span>Bubble Scale</span>
+      <input id="bubble-scale" type="range" min="50" max="200" step="5" value="100">
+      <span class="slider-val" id="bubble-scale-val">100 %</span>
+    </div>    <!-- live preview -->
+    <div class="preview-area">
+      <div class="preview-bubble" id="preview-bubble">Sample message</div>
+    </div>  </div>
+
+  <script>
+    'use strict';
+
+    const API      = 'http://127.0.0.1:42680';
+    const CANVAS_W = 1920;
+    const CANVAS_H = 1080;
+
+    // ── Current config state ─────────────────────────────────────────────
+    let bubbleX     = 100;
+    let bubbleY     = 150;
+    let fontSize    = 22;
+    let bubbleScale = 100;
+
+    // ── Status helper ────────────────────────────────────────────────────
+    let _statusTimer = null;
+    function setStatus(msg, type = '') {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = type;
+      clearTimeout(_statusTimer);
+      _statusTimer = setTimeout(() => { el.textContent = ''; el.className = ''; }, 2500);
+    }
+
+    // ── API helpers ──────────────────────────────────────────────────────
+    async function post(path, body = {}) {
+      return fetch(`${API}${path}`, {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(body),
+      });
+    }
+
+    // ── Send / Clear ─────────────────────────────────────────────────────
+    async function sendMessage() {
+      const input = document.getElementById('msg-input');
+      const text  = input.value.trim();
+      if (!text) return;
+      try {
+        const res = await post('/send', { text });
+        if (res.ok) { input.value = ''; setStatus('Sent!', 'ok'); }
+        else          setStatus('Server error — is the OBS script running?', 'err');
+      } catch (_) {
+        setStatus('Could not reach server — is the OBS script loaded?', 'err');
+      }
+      input.focus();
+    }
+
+    async function clearBubbles() {
+      try { await post('/clear'); setStatus('Cleared.', 'ok'); }
+      catch (_) { setStatus('Could not reach server.', 'err'); }
+      document.getElementById('msg-input').focus();
+    }
+
+    document.getElementById('msg-input').addEventListener('keydown', e => {
+      if (e.key === 'Enter') sendMessage();
+    });
+
+    // ── Config POST (debounced) ──────────────────────────────────────────
+    let _cfgTimer = null;
+    function scheduleConfig(immediate = false) {
+      clearTimeout(_cfgTimer);
+      _cfgTimer = setTimeout(async () => {
+        try {
+          const res = await post('/config', {
+            bubble_x:    Math.round(bubbleX),
+            bubble_y:    Math.round(bubbleY),
+            font_size:   fontSize,
+            bubble_scale: bubbleScale,
+          });
+          setConnected(res.ok);
+        } catch (_) {
+          setConnected(false);
+        }
+      }, immediate ? 0 : 80);
+    }
+
+    // ── Connection status ────────────────────────────────────────────────
+    const connDot = document.getElementById('conn-dot');
+    function setConnected(ok) {
+      connDot.className = ok ? 'ok' : 'err';
+      connDot.title     = ok ? 'Connected to OBS script' : 'Cannot reach OBS script server';
+    }
+
+    // ── Position grid ────────────────────────────────────────────────────
+    const grid    = document.getElementById('position-grid');
+    const dot     = document.getElementById('pos-dot');
+    const readout = document.getElementById('pos-readout');
+
+    function setDotPosition(cx, cy) {
+      bubbleX = Math.max(0, Math.min(CANVAS_W, cx));
+      bubbleY = Math.max(0, Math.min(CANVAS_H, cy));
+      dot.style.left = (bubbleX / CANVAS_W * 100) + '%';
+      dot.style.top  = (bubbleY / CANVAS_H * 100) + '%';
+      readout.textContent = `x: ${Math.round(bubbleX)}, y: ${Math.round(bubbleY)}`;
+    }
+
+    function pointerToCanvas(e) {
+      const rect = grid.getBoundingClientRect();
+      return {
+        x: (e.clientX - rect.left)  / rect.width  * CANVAS_W,
+        y: (e.clientY - rect.top)   / rect.height * CANVAS_H,
+      };
+    }
+
+    let _dragging = false;
+
+    grid.addEventListener('pointerdown', e => {
+      _dragging = true;
+      grid.setPointerCapture(e.pointerId);
+      grid.classList.add('dragging');
+      const { x, y } = pointerToCanvas(e);
+      setDotPosition(x, y);
+      scheduleConfig();
+    });
+
+    grid.addEventListener('pointermove', e => {
+      if (!_dragging) return;
+      const { x, y } = pointerToCanvas(e);
+      setDotPosition(x, y);
+      scheduleConfig();
+    });
+
+    grid.addEventListener('pointerup', () => {
+      _dragging = false;
+      grid.classList.remove('dragging');
+      scheduleConfig(true);
+    });
+
+    // ── Preview bubble ───────────────────────────────────────────────────
+    const previewBubble = document.getElementById('preview-bubble');
+    function updatePreview() {
+      const s = bubbleScale / 100;
+      previewBubble.style.fontSize     = `${(fontSize * s).toFixed(1)}px`;
+      previewBubble.style.padding      = `${(14 * s).toFixed(1)}px ${(20 * s).toFixed(1)}px`;
+      previewBubble.style.borderRadius = `${(16 * s).toFixed(1)}px`;
+      previewBubble.style.borderWidth  = `${(3  * s).toFixed(1)}px`;
+    }
+
+    // ── Sliders ──────────────────────────────────────────────────────────
+    const fontSlider  = document.getElementById('font-size');
+    const scaleSlider = document.getElementById('bubble-scale');
+    const fontVal     = document.getElementById('font-size-val');
+    const scaleVal    = document.getElementById('bubble-scale-val');
+
+    fontSlider.addEventListener('input', () => {
+      fontSize = parseInt(fontSlider.value);
+      fontVal.textContent = `${fontSize} px`;
+      updatePreview();
+      scheduleConfig();
+    });
+
+    scaleSlider.addEventListener('input', () => {
+      bubbleScale = parseInt(scaleSlider.value);
+      scaleVal.textContent = `${bubbleScale} %`;
+      updatePreview();
+      scheduleConfig();
+    });
+
+    // ── Load initial state ───────────────────────────────────────────────
+    async function loadState() {
+      try {
+        const res  = await fetch(`${API}/bubble_state.json?_=${Date.now()}`);
+        const data = await res.json();
+        const cfg  = data.config || {};
+
+        if (cfg.x        != null) bubbleX     = cfg.x;
+        if (cfg.y        != null) bubbleY     = cfg.y;
+        if (cfg.fontSize != null) fontSize    = cfg.fontSize;
+        if (cfg.scale    != null) bubbleScale = Math.round(cfg.scale * 100);
+
+        setDotPosition(bubbleX, bubbleY);
+        fontSlider.value     = fontSize;
+        fontVal.textContent  = `${fontSize} px`;
+        scaleSlider.value    = bubbleScale;
+        scaleVal.textContent = `${bubbleScale} %`;
+        updatePreview();
+        setConnected(true);
+      } catch (_) {
+        setConnected(false);
+      }
+    }
+
+    loadState();
+  </script>
+
+</body>
+</html>
