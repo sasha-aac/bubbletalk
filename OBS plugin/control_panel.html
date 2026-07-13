@@ -84,6 +84,8 @@
 
     .btn-send  { background: var(--accent); color: #fff; }
     .btn-clear { background: var(--card);   color: var(--muted); }
+    .btn-tts-on  { background: #1a6640; color: #7dffb3; border: 1px solid #2a9960; }
+    .btn-tts-off { background: var(--card); color: var(--muted); }
 
     #status {
       font-size: 0.82rem;
@@ -270,7 +272,10 @@
       <button class="btn-send"  onclick="sendMessage()">Send</button>
       <button class="btn-clear" onclick="clearBubbles()">Clear</button>
     </div>
-    <div id="status"></div>
+    <div style="display:flex; gap:8px; align-items:center">
+      <button id="tts-btn" class="btn-tts-off" onclick="toggleTts()" style="font-size:0.85rem; padding:7px 14px;">TTS off</button>
+      <span id="status"></span>
+    </div>
   </div>
 
   <!-- ── Position ────────────────────────────────────────────────────── -->
@@ -357,6 +362,26 @@
     document.getElementById('msg-input').addEventListener('keydown', e => {
       if (e.key === 'Enter') sendMessage();
     });
+
+    // ── TTS toggle ─────────────────────────────────────────────────────
+    let _ttsEnabled = false;
+    const ttsBtn = document.getElementById('tts-btn');
+
+    function setTtsState(enabled) {
+      _ttsEnabled = enabled;
+      ttsBtn.textContent = enabled ? 'TTS on' : 'TTS off';
+      ttsBtn.className   = enabled ? 'btn-tts-on' : 'btn-tts-off';
+    }
+
+    async function toggleTts() {
+      try {
+        const res  = await post('/tts', { enabled: !_ttsEnabled });
+        const data = await res.json();
+        setTtsState(data.tts_enabled);
+      } catch (_) {
+        setStatus('Could not reach server.', 'err');
+      }
+    }
 
     // ── Config POST (debounced) ──────────────────────────────────────────
     let _cfgTimer = null;
@@ -470,6 +495,7 @@
         if (cfg.y        != null) bubbleY     = cfg.y;
         if (cfg.fontSize != null) fontSize    = cfg.fontSize;
         if (cfg.scale    != null) bubbleScale = Math.round(cfg.scale * 100);
+        if (cfg.ttsEnabled != null) setTtsState(cfg.ttsEnabled);
 
         setDotPosition(bubbleX, bubbleY);
         fontSlider.value     = fontSize;
