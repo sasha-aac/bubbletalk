@@ -1,1 +1,1 @@
-{"messages": [{"text": "tts off", "expires_at": "2026-07-12T21:53:03.731845"}, {"text": "tts on", "expires_at": "2026-07-12T21:53:12.955999"}], "config": {"x": 100, "y": 150, "fontSize": 22, "scale": 1.0, "ttsEnabled": true}}
+{"messages": [], "config": {"x": 100, "y": 150, "fontSize": 22, "scale": 1.0, "ttsEnabled": true}}
